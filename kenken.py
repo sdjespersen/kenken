@@ -1,8 +1,6 @@
 #!/usr/bin/env python
 # KenKen solver by Scott Jespersen
-# Begun March 10, 2013
-# First successful on April 21, 2013 (without search)
-# Completely functional on April 26, 2013 (with search)
+# April 29, 2013
 """Read in a KenKen in JSON format and solve it."""
 
 # stdlib
