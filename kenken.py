@@ -86,7 +86,7 @@ def comment(depth):
     if depth < len(comments):
         return comments[depth]
     else:
-        return "Depth:" + str(depth)
+        return "Depth: " + str(depth)
 
 
 def solve(kenken, depth=0):
@@ -95,23 +95,13 @@ def solve(kenken, depth=0):
     while not kenken.is_solved() and not kenken.has_conflicts():
         snapshot = copy.deepcopy(kenken.candidates)
         kenken = cageops.reduce_cages(kenken)
-        print "After cage-reduce operations:"
-        kenken.print_candidates()
         kenken = rowops.reduce_rows_and_cols(kenken)
-        print "After row-reduce operations:"
-        kenken.print_candidates()
         if kenken.candidates == snapshot and not kenken.is_solved():
             for sandbox in bifurcate(kenken):
-                print "Sandbox before solve:"
-                sandbox.print_candidates()
                 sandbox = solve(sandbox, depth + 1)
-                print "Sandbox after solve:"
-                sandbox.print_candidates()
                 if sandbox.has_conflicts():
-                    print "Conflicts found. Moving on."
                     continue
                 else:
-                    print "Solved!"
                     sandbox.print_candidates()
                     return sandbox
     return kenken
