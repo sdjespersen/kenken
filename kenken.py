@@ -104,7 +104,6 @@ def solve(kenken, depth=0):
                 if sandbox.has_conflicts():
                     continue
                 else:
-                    sandbox.print_candidates()
                     return sandbox
     return kenken
 
