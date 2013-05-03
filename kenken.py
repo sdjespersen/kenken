@@ -79,14 +79,14 @@ def load_puzzle(filename):
 
 def comment(depth):
     """Say something witty in response to how deep the search has gone."""
-    comments = {}
-    comments[0] = "Here we go! Starting to solve."
-    comments[1] = "I don't like making choices, but sometimes one must."
-    comments[2] = "It's getting pretty deep out here!"
-    if depth in comments.keys():
+    comments = []
+    comments.append("Here we go! Starting to solve.")
+    comments.append("I don't like making choices, but sometimes one must.")
+    comments.append("It's getting pretty deep out here!")
+    if depth < len(comments):
         return comments[depth]
     else:
-        return "Depth:", depth
+        return "Depth:" + str(depth)
 
 
 def solve(kenken, depth=0):
