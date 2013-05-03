@@ -52,6 +52,8 @@ class KenKenPuzzle:
 
     def print_candidates(self):
         """Print the ordered candidates in tab-separated format."""
+        if self.is_solved:
+            print "The puzzle is solved!"
         for i in range(self.size):
             row = self.get_slice(i + 1, 'row')
             ordered = [str(row[cell]) for cell in sorted(row.keys())]
