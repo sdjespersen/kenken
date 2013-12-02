@@ -8,6 +8,7 @@ import sys
 import json
 import itertools
 import copy
+
 # mine
 import puzlint
 import cageops
@@ -116,14 +117,3 @@ def bifurcate(kenken):
             print "Choosing", choice, "from", choices, "in", cell
             kenken.candidates[cell] = set([choice])
             yield kenken
-
-
-if __name__ == "__main__":
-    try:
-        filename = sys.argv[1]
-    except IndexError:
-        print "Missing argument: Input puzzle filename. Exiting."
-        sys.exit(1)
-    else:
-        solved = solve(load_puzzle(filename))
-        solved.print_candidates()
