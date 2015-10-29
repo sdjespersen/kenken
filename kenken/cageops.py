@@ -2,6 +2,8 @@
 # Scott Jespersen
 """A collection of functions for working on cages of cells."""
 
+import collections
+import functools
 import itertools
 
 def reduce_cages(kenken):
@@ -16,12 +18,12 @@ def reduce_cages(kenken):
 def memoize(func):
     """Cache results of wrapped function, keyed by first argument."""
     cache = {}
-    def memoizer(*args):
+    def memoized(*args):
         key = str(args[0])
         if key not in cache:
             cache[key] = func(*args)
         return cache[key]
-    return memoizer
+    return memoized
 
 
 @memoize
@@ -56,7 +58,6 @@ def gets_right_result(nums, operation, result):
     if operation == "+":
         return sum(nums) == result
     elif operation == "*":
-        # use prod function defined in this module
         return prod(nums) == result
     elif operation == "-":
         return abs(nums[0] - nums[1]) == result
@@ -66,12 +67,9 @@ def gets_right_result(nums, operation, result):
         raise Exception("Unrecognized operation: %s" % operation)
 
 
-def prod(arr):
-    """Return the product of all numbers in arr."""
-    product = 1
-    for num in arr:
-        product *= num
-    return product
+def prod(xs):
+    """Return the product of all numbers in xs."""
+    return functools.reduce(lambda x, y: x * y, xs, 1)
 
 
 def remove_illegal(combos, candidates):
@@ -86,10 +84,8 @@ def remove_illegal(combos, candidates):
 
 def merge_combos(combos):
     """Merge a list of dicts into one dict, taking the set union of values."""
-    merged = {}
+    merged = collections.defaultdict(set)
     for combo in combos:
         for cell, value in combo.items():
-            if cell not in merged.keys():
-                merged[cell] = set([])
             merged[cell].add(value)
     return merged
