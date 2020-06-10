@@ -1,4 +1,4 @@
-# KenKen solver by Scott Jespersen
+# KenKen solver by Scott Jespersen and Amy Shoemaker
 # April 29, 2013, updates June 2020
 """A solver for specially-formatted KenKen puzzles."""
 
@@ -14,7 +14,9 @@ from typing import (
 )
 
 
-CandidatesType = Dict[Tuple[int, ...], Set[int]]
+CandidatesType = Dict[Tuple[int, int], Set[int]]
+ComboType = Tuple[Tuple[int, int], int]
+SolutionType = Tuple[Tuple[int, ...], ...]
 
 
 class NoSolutionError(Exception):
@@ -34,10 +36,10 @@ class KenKenPuzzle:
         """Create a new KenKenPuzzle object with the given inputs."""
         self.size: int = size
         self.cages: Tuple[Cage, ...] = cages
-        self.solution: Optional[List[List[int]]] = None
+        self.solution: Optional[SolutionType] = None
         self.candidates: CandidatesType = {}
-        for coord in itertools.product(set(range(1, size + 1)), repeat=2):
-            self.candidates[coord] = set(range(1, size + 1))
+        for i, j in itertools.product(set(range(1, size + 1)), repeat=2):
+            self.candidates[(i, j)] = set(range(1, size + 1))
 
     def solve(self, depth: int = 0) -> None:
         """Solve the KenKen."""
@@ -67,11 +69,10 @@ class KenKenPuzzle:
         """Check if there is exactly 1 candidate left in each cell."""
         done = all(len(val) == 1 for val in self.candidates.values())
         if done and self.solution is None:
-            self.solution = [
-                [0 for _ in range(self.size)] for _ in range(self.size)]
+            sol = [[0 for _ in range(self.size)] for _ in range(self.size)]
             for coord, values in self.candidates.items():
-                self.solution[coord[0] - 1][coord[1] - 1] = (
-                    copy.copy(values).pop())
+                sol[coord[0] - 1][coord[1] - 1] = copy.copy(values).pop()
+            self.solution = tuple([tuple(v) for v in sol])
         return self.solution is not None
 
 
@@ -120,14 +121,14 @@ def _reduce_cages(kenken: KenKenPuzzle) -> KenKenPuzzle:
     """Shorten the candidate sets cage by cage."""
     for cage in kenken.cages:
         all_combos = _get_possible_combos(cage, kenken.size)
-        _remove_illegal(all_combos, kenken.candidates)
-        kenken._replace(_merge_combos(all_combos))
+        legal_combos = _remove_illegal(all_combos, kenken.candidates)
+        kenken._replace(_merge_combos(legal_combos))
     return kenken
 
 
 def memoize(f):
     cache = {}
-    def memoized(cage: Cage, size: int):
+    def memoized(cage: Cage, size: int) -> Tuple[ComboType, ...]:
         key = (cage, size)
         if key not in cache:
             cache[key] = f(cage, size)
@@ -136,10 +137,9 @@ def memoize(f):
 
 
 @memoize
-def _get_possible_combos(
-        cage: Cage, size: int) -> List[Tuple[Tuple[int, int], int]]:
+def _get_possible_combos(cage: Cage, size: int) -> Tuple[ComboType, ...]:
     """Return a list of all possible combinations of cell values for cage."""
-    possible_combos = []
+    possible_combos: List[ComboType] = []
     cells: FrozenSet[Tuple[int, int]] = cage.cells
     if len(cells) == 1:
         # short-circuit the whole process for singletons
@@ -152,10 +152,10 @@ def _get_possible_combos(
                 list(combo.values()), cage.operation, cage.result)
             if _crosscheck(combo) and correct_result:
                 possible_combos.append(tuple(combo.items()))
-    return possible_combos
+    return tuple(possible_combos)
 
 
-def _crosscheck(cells):
+def _crosscheck(cells: CandidatesType) -> bool:
     """Check for duplicate values in any row or column."""
     for coord1, coord2 in itertools.combinations(cells.keys(), 2):
         # check values first, coordinates second
@@ -165,7 +165,8 @@ def _crosscheck(cells):
     return True
 
 
-def _gets_right_result(nums, operation, result):
+def _gets_right_result(
+        nums: List[int], operation: Optional[str], result: int) -> bool:
     """Check that nums under operation produce result."""
     if operation == "+":
         return sum(nums) == result
@@ -184,13 +185,18 @@ def _prod(xs):
     return functools.reduce(lambda x, y: x * y, xs, 1)
 
 
-def _remove_illegal(combos, candidates):
+def _remove_illegal(
+        combos: Tuple[ComboType, ...],
+        candidates: CandidatesType) -> Tuple[ComboType, ...]:
     """Remove combos that require missing candidates and return the rest."""
-    for combo in list(combos):
+    legal_combos: List[ComboType] = []
+    for combo in combos:
+        legal_combos.append(combo)
         for cell, value in combo:
             if value not in candidates[cell]:
-                combos.remove(combo)
+                legal_combos.pop()
                 break
+    return tuple(legal_combos)
 
 
 def _merge_combos(combos):
