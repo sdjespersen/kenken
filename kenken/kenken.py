@@ -120,25 +120,38 @@ def _reduce_cages(kenken: KenKenPuzzle) -> KenKenPuzzle:
     """Shorten the candidate sets cage by cage."""
     for cage in kenken.cages:
         all_combos = _get_possible_combos(cage, kenken.size)
-        legal_combos = _remove_illegal(all_combos, kenken.candidates)
-        kenken._replace(_merge_combos(legal_combos))
+        _remove_illegal(all_combos, kenken.candidates)
+        kenken._replace(_merge_combos(all_combos))
     return kenken
 
 
-def _get_possible_combos(cage: Cage, size: int):
+def memoize(f):
+    cache = {}
+    def memoized(cage: Cage, size: int):
+        key = (cage, size)
+        if key not in cache:
+            cache[key] = f(cage, size)
+        return copy.deepcopy(cache[key])
+    return memoized
+
+
+@memoize
+def _get_possible_combos(
+        cage: Cage, size: int) -> List[Tuple[Tuple[int, int], int]]:
     """Return a list of all possible combinations of cell values for cage."""
     possible_combos = []
     cells: FrozenSet[Tuple[int, int]] = cage.cells
     if len(cells) == 1:
         # short-circuit the whole process for singletons
-        possible_combos.append({next(iter(cells)): cage.result})
+        val = (next(iter(cells)), cage.result)
+        possible_combos.append((val,))
     else:
         for values in itertools.product(range(1, size + 1), repeat=len(cells)):
             combo = dict(zip(cells, values))
             correct_result = _gets_right_result(
                 list(combo.values()), cage.operation, cage.result)
             if _crosscheck(combo) and correct_result:
-                possible_combos.append(combo)
+                possible_combos.append(tuple(combo.items()))
     return possible_combos
 
 
@@ -174,18 +187,17 @@ def _prod(xs):
 def _remove_illegal(combos, candidates):
     """Remove combos that require missing candidates and return the rest."""
     for combo in list(combos):
-        for cell, value in combo.items():
+        for cell, value in combo:
             if value not in candidates[cell]:
                 combos.remove(combo)
                 break
-    return combos
 
 
 def _merge_combos(combos):
     """Merge a list of dicts into one dict, taking the set union of values."""
     merged = collections.defaultdict(set)
     for combo in combos:
-        for cell, value in combo.items():
+        for cell, value in combo:
             merged[cell].add(value)
     return merged
 
