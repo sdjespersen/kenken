@@ -9,7 +9,9 @@ import itertools
 import json
 import logging
 import os
-from typing import Any, Dict, List, Optional, Set, Tuple
+from typing import (
+    Dict, FrozenSet, Iterable, List, NamedTuple, Optional, Set, Tuple
+)
 
 
 CandidatesType = Dict[Tuple[int, ...], Set[int]]
@@ -19,13 +21,19 @@ class NoSolutionError(Exception):
     pass
 
 
+class Cage(NamedTuple):
+    cells: FrozenSet[Tuple[int, int]]
+    result: int
+    operation: Optional[str] = None
+
+
 class KenKenPuzzle:
     """Define a KenKenPuzzle with size, cages, and candidate sets."""
 
-    def __init__(self, size: int, cages: Tuple[Dict[str, Any]]) -> None:
+    def __init__(self, size: int, cages: Tuple[Cage, ...]) -> None:
         """Create a new KenKenPuzzle object with the given inputs."""
         self.size: int = size
-        self.cages: Tuple[Dict[str, Any]] = cages
+        self.cages: Tuple[Cage, ...] = cages
         self.solution: Optional[List[List[int]]] = None
         self.candidates: CandidatesType = {}
         for coord in itertools.product(set(range(1, size + 1)), repeat=2):
@@ -35,8 +43,8 @@ class KenKenPuzzle:
         """Solve the KenKen."""
         return _solve(self, depth=depth)
 
-    def _get_slice(self, idx, mode):
-        """Return a row or column from candidates, as a dict (unordered)."""
+    def _get_slice(self, idx: int, mode: str) -> CandidatesType:
+        """Return a row or column from candidates, as a dict."""
         coord = {'row': 0, 'col': 1}
         return {cell: value for cell, value in self.candidates.items()
                 if cell[coord[mode]] == idx}
@@ -70,17 +78,18 @@ class KenKenPuzzle:
 def load_from_json(filename: os.PathLike) -> KenKenPuzzle:
     """Parse json from the given file, then validate and return the puzzle."""
     with open(filename) as f:
-        return load(json.loads(f.read()))
+        parsed = json.loads(f.read())
+        cages = [Cage(**v) for v in parsed['cages']]
+        return load(parsed['size'], cages)
 
 
-def load(puzzle: Dict[str, Any]) -> KenKenPuzzle:
-    """Validate and return the given puzzle as a KenKenPuzzle."""
-    validated = validate(puzzle)
-    return KenKenPuzzle(validated['size'], validated['cages'])
+def load(size: int, cages: Iterable[Cage]) -> KenKenPuzzle:
+    """Validate and return the given puzzle spec as a KenKenPuzzle."""
+    return KenKenPuzzle(*validate(size, cages))
 
 
 def _solve(kenken: KenKenPuzzle, depth: int = 0) -> None:
-    """Run cageops, rowops, and recursive search if necessary."""
+    """Solve the KenKen with deduction and recursive search when needed."""
     while not kenken._is_solved() and not kenken._has_conflicts():
         snapshot = copy.deepcopy(kenken.candidates)
         kenken = _reduce_cages(kenken)
@@ -116,24 +125,24 @@ def _reduce_cages(kenken: KenKenPuzzle) -> KenKenPuzzle:
     return kenken
 
 
-def _get_possible_combos(cage, size):
+def _get_possible_combos(cage: Cage, size: int):
     """Return a list of all possible combinations of cell values for cage."""
-    possible_combos, cells, result = [], cage['cells'], cage['result']
+    possible_combos = []
+    cells: FrozenSet[Tuple[int, int]] = cage.cells
     if len(cells) == 1:
         # short-circuit the whole process for singletons
-        possible_combos.append({cells[0]: result})
+        possible_combos.append({next(iter(cells)): cage.result})
     else:
-        oper = cage['operation']
         for values in itertools.product(range(1, size + 1), repeat=len(cells)):
             combo = dict(zip(cells, values))
-            correct_result = gets_right_result(
-                list(combo.values()), oper, result)
-            if crosscheck(combo) and correct_result:
+            correct_result = _gets_right_result(
+                list(combo.values()), cage.operation, cage.result)
+            if _crosscheck(combo) and correct_result:
                 possible_combos.append(combo)
     return possible_combos
 
 
-def crosscheck(cells):
+def _crosscheck(cells):
     """Check for duplicate values in any row or column."""
     for coord1, coord2 in itertools.combinations(cells.keys(), 2):
         # check values first, coordinates second
@@ -143,7 +152,7 @@ def crosscheck(cells):
     return True
 
 
-def gets_right_result(nums, operation, result):
+def _gets_right_result(nums, operation, result):
     """Check that nums under operation produce result."""
     if operation == "+":
         return sum(nums) == result
@@ -278,58 +287,35 @@ def _invert(updates, row):
     return to_be_deleted
 
 
-def validate(puzzle: Dict[str, Any]) -> Dict[str, Any]:
+def validate(size: int, cages: Iterable[Cage]) -> Tuple[int, Tuple[Cage, ...]]:
     """Validate, parse, and return the incoming puzzle. Not bulletproof."""
-    assert type(puzzle) is dict
-    assert set(puzzle.keys()).issuperset(set(['cages', 'size']))
-
-    size = copy.copy(puzzle['size'])
-    cages = copy.deepcopy(puzzle['cages'])
-
-    assert type(size) is int
-    assert type(cages) in (list, tuple)
-
-    valid_puz = {}
-    valid_puz['size'] = size
-    valid_puz['cages'] = []
-
     # for value and size testing
-    all_cells = []
+    all_cages: List[Cage] = []
+    all_cells: List[Tuple[int, int]] = []
 
     for cage in cages:
-        assert type(cage) is dict
-        assert set(cage.keys()).issuperset(set(['cells', 'result']))
-
-        assert type(cage['result']) is int
-        assert type(cage['cells']) in (list, tuple)
-        cage['cells'] = tuple([tuple(c) for c in cage['cells']])
-        cells = cage['cells']
-
-        for cell in cells:
-            assert type(cell) is tuple
+        for cell in cage.cells:
             assert len(cell) == 2
             assert all(type(x) is int for x in (cell[0], cell[1]))
             assert all(x in range(1, size + 1) for x in (cell[0], cell[1]))
-            all_cells.append(cell)
 
-        if len(cells) > 1:
-            assert 'operation' in cage.keys()
-            operation = cage['operation']
-            assert operation in ('+', '-', '*', '/')
-            result = cage['result']
-            if operation in ('-', '/'):
-                assert len(cells) == 2
-            if operation == '-':
-                assert result in range(1, size)
-            if operation == '/':
-                assert result in range(1, size + 1)
-
-        cage['cells'] = tuple(cells)
-        valid_puz['cages'].append(cage)
+        if len(cage.cells) > 1:
+            assert cage.operation is not None
+            assert cage.operation in ('+', '-', '*', '/')
+            if cage.operation in ('-', '/'):
+                assert len(cage.cells) == 2
+            if cage.operation == '-':
+                assert cage.result in range(1, size)
+            if cage.operation == '/':
+                assert cage.result in range(1, size + 1)
+        valid_cells: FrozenSet[Tuple[int, int]] = (
+            frozenset([(v[0], v[1]) for v in cage.cells]))
+        all_cells.extend(valid_cells)
+        all_cages.append(Cage(
+            cells=valid_cells, result=cage.result, operation=cage.operation))
 
     assert len(all_cells) == size * size
     assert len(all_cells) == len(set(all_cells))
     logging.info("Input puzzle validated.")
 
-    valid_puz['cages'] = tuple(valid_puz['cages'])
-    return valid_puz
+    return size, tuple(all_cages)
