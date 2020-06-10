@@ -14,9 +14,14 @@ from typing import (
 )
 
 
-CandidatesType = Dict[Tuple[int, int], Set[int]]
-ComboType = Tuple[Tuple[int, int], int]
-SolutionType = Tuple[Tuple[int, ...], ...]
+# A 2-D coordinate of a cell in a KenKen
+Cell = Tuple[int, int]
+# A mapping from a Cell to a set of candidate solutions
+Candidates = Dict[Cell, Set[int]]
+# A possible solution for a given cage of cells
+CageCombo = Tuple[Tuple[Cell, int], ...]
+# A solution to the puzzle
+Solution = Tuple[Tuple[int, ...], ...]
 
 
 class NoSolutionError(Exception):
@@ -24,7 +29,7 @@ class NoSolutionError(Exception):
 
 
 class Cage(NamedTuple):
-    cells: FrozenSet[Tuple[int, int]]
+    cells: FrozenSet[Cell]
     result: int
     operation: Optional[str] = None
 
@@ -36,8 +41,9 @@ class KenKenPuzzle:
         """Create a new KenKenPuzzle object with the given inputs."""
         self.size: int = size
         self.cages: Tuple[Cage, ...] = cages
-        self.solution: Optional[SolutionType] = None
-        self.candidates: CandidatesType = {}
+        self.solution: Optional[Solution] = None
+        self.candidates: Candidates = {}
+        # Initialize candidates: All possible values in each cell
         for i, j in itertools.product(set(range(1, size + 1)), repeat=2):
             self.candidates[(i, j)] = set(range(1, size + 1))
 
@@ -45,18 +51,18 @@ class KenKenPuzzle:
         """Solve the KenKen."""
         return _solve(self, depth=depth)
 
-    def _get_slice(self, idx: int, mode: str) -> CandidatesType:
+    def _get_slice(self, idx: int, mode: str) -> Candidates:
         """Return a row or column from candidates, as a dict."""
         coord = {'row': 0, 'col': 1}
         return {cell: value for cell, value in self.candidates.items()
                 if cell[coord[mode]] == idx}
 
-    def _replace(self, updates: CandidatesType) -> None:
+    def _replace(self, updates: Candidates) -> None:
         """Assign given candidate cells the values in updates."""
         for cell, value in updates.items():
             self.candidates[cell] = set(value)
 
-    def _remove(self, updates: CandidatesType) -> None:
+    def _remove(self, updates: Candidates) -> None:
         """Subtract input sets from given cells in candidates."""
         for cell, values in updates.items():
             self.candidates[cell].difference_update(values)
@@ -128,7 +134,7 @@ def _reduce_cages(kenken: KenKenPuzzle) -> KenKenPuzzle:
 
 def memoize(f):
     cache = {}
-    def memoized(cage: Cage, size: int) -> Tuple[ComboType, ...]:
+    def memoized(cage: Cage, size: int) -> Tuple[CageCombo, ...]:
         key = (cage, size)
         if key not in cache:
             cache[key] = f(cage, size)
@@ -137,14 +143,14 @@ def memoize(f):
 
 
 @memoize
-def _get_possible_combos(cage: Cage, size: int) -> Tuple[ComboType, ...]:
+def _get_possible_combos(cage: Cage, size: int) -> Tuple[CageCombo, ...]:
     """Return a list of all possible combinations of cell values for cage."""
-    possible_combos: List[ComboType] = []
-    cells: FrozenSet[Tuple[int, int]] = cage.cells
+    possible_combos: List[CageCombo] = []
+    cells: FrozenSet[Cell] = cage.cells
     if len(cells) == 1:
         # short-circuit the whole process for singletons
-        val = (next(iter(cells)), cage.result)
-        possible_combos.append((val,))
+        cell: Cell = next(iter(cells))
+        possible_combos.append(((cell, cage.result),))
     else:
         for values in itertools.product(range(1, size + 1), repeat=len(cells)):
             combo = dict(zip(cells, values))
@@ -155,7 +161,7 @@ def _get_possible_combos(cage: Cage, size: int) -> Tuple[ComboType, ...]:
     return tuple(possible_combos)
 
 
-def _crosscheck(cells: CandidatesType) -> bool:
+def _crosscheck(cells: Candidates) -> bool:
     """Check for duplicate values in any row or column."""
     for coord1, coord2 in itertools.combinations(cells.keys(), 2):
         # check values first, coordinates second
@@ -180,16 +186,16 @@ def _gets_right_result(
         raise Exception("Unrecognized operation: %s" % operation)
 
 
-def _prod(xs):
+def _prod(xs: List[int]) -> int:
     """Return the product of all numbers in xs."""
     return functools.reduce(lambda x, y: x * y, xs, 1)
 
 
 def _remove_illegal(
-        combos: Tuple[ComboType, ...],
-        candidates: CandidatesType) -> Tuple[ComboType, ...]:
+        combos: Tuple[CageCombo, ...],
+        candidates: Candidates) -> Tuple[CageCombo, ...]:
     """Remove combos that require missing candidates and return the rest."""
-    legal_combos: List[ComboType] = []
+    legal_combos: List[CageCombo] = []
     for combo in combos:
         legal_combos.append(combo)
         for cell, value in combo:
@@ -199,7 +205,7 @@ def _remove_illegal(
     return tuple(legal_combos)
 
 
-def _merge_combos(combos):
+def _merge_combos(combos: Tuple[CageCombo, ...]) -> Dict[Cell, Set[int]]:
     """Merge a list of dicts into one dict, taking the set union of values."""
     merged = collections.defaultdict(set)
     for combo in combos:
@@ -211,10 +217,10 @@ def _merge_combos(combos):
 def _reduce_rows_and_cols(kenken: KenKenPuzzle) -> KenKenPuzzle:
     """Execute strategies on each row and column. Repeat until unchanged."""
     while True:
-        snapshot: CandidatesType = copy.deepcopy(kenken.candidates)
+        snapshot: Candidates = copy.deepcopy(kenken.candidates)
         for m in range(kenken.size):
             for mode in ('row', 'col'):
-                slice_m = _get_slice(kenken, m + 1, mode)
+                slice_m: Candidates = _get_slice(kenken, m + 1, mode)
                 for n in range(1, kenken.size // 2 + 1):
                     exposed_groups = _find_exposed_groups(slice_m, n)
                     if exposed_groups:
@@ -228,25 +234,25 @@ def _reduce_rows_and_cols(kenken: KenKenPuzzle) -> KenKenPuzzle:
             return kenken
 
 
-def _get_slice(kenken, idx, mode):
+def _get_slice(kenken: KenKenPuzzle, idx: int, mode: str) -> Candidates:
     """Return a row or column from candidates, as a dict (unordered)."""
     coord = {'row': 0, 'col': 1}
     return {cell: value for cell, value in kenken.candidates.items()
             if cell[coord[mode]] == idx}
 
 
-def _check_no_duplicates(cslice):
+def _check_no_duplicates(cslice: Candidates) -> None:
     """Fail if there are any duplicate values in this slice."""
     for cands1, cands2 in itertools.combinations(cslice.values(), 2):
         if len(cands1) == 1 and cands1 == cands2:
             raise NoSolutionError()
 
 
-def _find_exposed_groups(row, n):
+def _find_exposed_groups(row: Candidates, n: int) -> Dict[Cell, Set[int]]:
     """
     Find all sets of n cells in row that contain only the same n candidates.
     """
-    groups = {}
+    groups: Dict[Cell, Set[int]] = {}
     length_n_cells = [
         {cell: value} for cell, value in row.items() if len(value) == n]
     if len(length_n_cells) >= n:
@@ -259,10 +265,10 @@ def _find_exposed_groups(row, n):
     return groups
 
 
-def _find_hidden_groups(row, n):
+def _find_hidden_groups(row: Candidates, n: int) -> Dict[Cell, Set[int]]:
     """Find all sets of n cells in row that exclusively contain the same n
     candidates."""
-    hidden = {}
+    hidden: Dict[Cell, Set[int]] = {}
     flatrow = _flatten(row.values())
     appears_n_times = [i for i in set(flatrow) if flatrow.count(i) == n]
     if len(appears_n_times) >= n:
@@ -307,9 +313,9 @@ def _invert(updates, row):
 
 def validate(size: int, cages: Iterable[Cage]) -> Tuple[int, Tuple[Cage, ...]]:
     """Validate, parse, and return the incoming puzzle. Not bulletproof."""
-    # for value and size testing
     all_cages: List[Cage] = []
-    all_cells: List[Tuple[int, int]] = []
+    # To make sure all cells were covered
+    all_cells: List[Cell] = []
 
     for cage in cages:
         for cell in cage.cells:
@@ -326,7 +332,7 @@ def validate(size: int, cages: Iterable[Cage]) -> Tuple[int, Tuple[Cage, ...]]:
                 assert cage.result in range(1, size)
             if cage.operation == '/':
                 assert cage.result in range(1, size + 1)
-        valid_cells: FrozenSet[Tuple[int, int]] = (
+        valid_cells: FrozenSet[Cell] = (
             frozenset([(v[0], v[1]) for v in cage.cells]))
         all_cells.extend(valid_cells)
         all_cages.append(Cage(
