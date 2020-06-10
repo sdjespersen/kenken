@@ -99,8 +99,8 @@ def _solve(kenken: KenKenPuzzle, depth: int = 0) -> None:
     """Solve the KenKen with deduction and recursive search when needed."""
     while not kenken._is_solved() and not kenken._has_conflicts():
         snapshot = copy.deepcopy(kenken.candidates)
-        kenken = _reduce_cages(kenken)
-        kenken = _reduce_rows_and_cols(kenken)
+        _reduce_cages(kenken)
+        _reduce_rows_and_cols(kenken)
         if kenken.candidates == snapshot and not kenken._is_solved():
             unsolved = [cell for cell in kenken.candidates.items()
                         if len(cell[1]) > 1]
@@ -123,13 +123,12 @@ def _solve(kenken: KenKenPuzzle, depth: int = 0) -> None:
         raise NoSolutionError()
 
 
-def _reduce_cages(kenken: KenKenPuzzle) -> KenKenPuzzle:
+def _reduce_cages(kenken: KenKenPuzzle) -> None:
     """Shorten the candidate sets cage by cage."""
     for cage in kenken.cages:
         all_combos = _get_possible_combos(cage, kenken.size)
         legal_combos = _remove_illegal(all_combos, kenken.candidates)
         kenken._replace(_merge_combos(legal_combos))
-    return kenken
 
 
 def memoize(f):
@@ -214,7 +213,7 @@ def _merge_combos(combos: Tuple[CageCombo, ...]) -> Dict[Cell, Set[int]]:
     return merged
 
 
-def _reduce_rows_and_cols(kenken: KenKenPuzzle) -> KenKenPuzzle:
+def _reduce_rows_and_cols(kenken: KenKenPuzzle) -> None:
     """Execute strategies on each row and column. Repeat until unchanged."""
     while True:
         snapshot: Candidates = copy.deepcopy(kenken.candidates)
@@ -231,7 +230,7 @@ def _reduce_rows_and_cols(kenken: KenKenPuzzle) -> KenKenPuzzle:
                         kenken._remove(_invert(hidden_groups, slice_m))
                 _check_no_duplicates(slice_m)
         if kenken.candidates == snapshot:
-            return kenken
+            return
 
 
 def _get_slice(kenken: KenKenPuzzle, idx: int, mode: str) -> Candidates:
