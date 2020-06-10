@@ -131,7 +131,7 @@ def memoize(f):
         key = (cage, size)
         if key not in cache:
             cache[key] = f(cage, size)
-        return copy.deepcopy(cache[key])
+        return copy.copy(cache[key])
     return memoized
 
 
