@@ -3,7 +3,6 @@
 """A solver for specially-formatted KenKen puzzles."""
 
 import collections
-import copy
 import functools
 import itertools
 import json
@@ -92,7 +91,7 @@ class KenKenPuzzle:
         if self.solution is None:
             sol = [[0 for _ in range(self.size)] for _ in range(self.size)]
             for coord, values in self.candidates.items():
-                sol[coord[0] - 1][coord[1] - 1] = copy.copy(values).pop()
+                sol[coord[0] - 1][coord[1] - 1] = next(iter(values))
             self.solution = tuple([tuple(v) for v in sol])
         return True
 
@@ -113,7 +112,7 @@ def load(size: int, cages: Iterable[Cage]) -> KenKenPuzzle:
 def _solve(kenken: KenKenPuzzle, depth: int = 0) -> None:
     """Solve the KenKen with deduction and recursive search when needed."""
     while not kenken._is_solved():
-        snapshot = copy.deepcopy(kenken.candidates)
+        snapshot = _copy_candidates(kenken)
         _reduce_cages(kenken)
         _reduce_rows_and_cols(kenken)
         if kenken.candidates == snapshot and not kenken._is_solved():
@@ -123,7 +122,7 @@ def _solve(kenken: KenKenPuzzle, depth: int = 0) -> None:
             for choice in choices:
                 logging.info(f"Choosing {choice} in {cell}")
                 proposal = KenKenPuzzle(kenken.size, kenken.cages)
-                proposal.candidates = copy.deepcopy(kenken.candidates)
+                proposal.candidates = _copy_candidates(kenken)
                 proposal.candidates[cell] = {choice}
                 try:
                     _solve(proposal, depth + 1)
@@ -150,7 +149,7 @@ def memoize(f):
         key = (cage, size)
         if key not in cache:
             cache[key] = f(cage, size)
-        return copy.copy(cache[key])
+        return cache[key]
     return memoized
 
 
@@ -231,7 +230,7 @@ def _merge_combos(combos: Tuple[CageCombo, ...]) -> Dict[Cell, Set[int]]:
 def _reduce_rows_and_cols(kenken: KenKenPuzzle) -> None:
     """Execute strategies on each row and column. Repeat until unchanged."""
     while True:
-        snapshot: Candidates = copy.deepcopy(kenken.candidates)
+        snapshot: Candidates = _copy_candidates(kenken)
         for m in range(kenken.size):
             for mode in ('row', 'col'):
                 slice_m: Candidates = _get_slice(kenken, m + 1, mode)
@@ -323,6 +322,10 @@ def _invert(updates, row):
         if cell in updates.keys():
             to_be_deleted[cell].difference_update(updates[cell])
     return to_be_deleted
+
+
+def _copy_candidates(kenken: KenKenPuzzle) -> Candidates:
+    return {k: set(v) for k, v in kenken.candidates.items()}
 
 
 def validate(size: int, cages: Iterable[Cage]) -> Tuple[int, Tuple[Cage, ...]]:

@@ -24,4 +24,4 @@ yields
 
 This solver applies pretty rudimentary logic to reduce the size of candidate
 sets and thus reduce the search depth. For 4-by-4 and 6-by-6 puzzles, solving is
-instantaneous. 8-by-8 puzzles take around 1 second.
+near-instantaneous. 8-by-8 puzzles take under 1 second.
