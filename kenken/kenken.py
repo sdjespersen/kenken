@@ -72,14 +72,29 @@ class KenKenPuzzle:
         return any(len(val) == 0 for val in self.candidates.values())
 
     def _is_solved(self) -> bool:
-        """Check if there is exactly 1 candidate left in each cell."""
-        done = all(len(val) == 1 for val in self.candidates.values())
-        if done and self.solution is None:
+        """Check if the KenKen is solved."""
+        if not all(len(val) == 1 for val in self.candidates.values()):
+            return False
+        # Check all cages and throw if invalid
+        for cage in self.cages:
+            nums: List[int] = [
+                next(iter(self.candidates[cell])) for cell in cage.cells]
+            if not _gets_right_result(nums, cage.operation, cage.result):
+                raise NoSolutionError()
+        # Check all rows/cols and throw if invalid
+        for mode in ('row', 'col'):
+            for i in range(1, self.size + 1):
+                slice_set = set(
+                    [next(iter(z)) for z in self._get_slice(i, mode).values()])
+                if not slice_set == set(range(1, self.size + 1)):
+                    raise NoSolutionError()
+        # Valid! Save solution.
+        if self.solution is None:
             sol = [[0 for _ in range(self.size)] for _ in range(self.size)]
             for coord, values in self.candidates.items():
                 sol[coord[0] - 1][coord[1] - 1] = copy.copy(values).pop()
             self.solution = tuple([tuple(v) for v in sol])
-        return self.solution is not None
+        return True
 
 
 def load_from_json(filename: os.PathLike) -> KenKenPuzzle:
@@ -97,7 +112,7 @@ def load(size: int, cages: Iterable[Cage]) -> KenKenPuzzle:
 
 def _solve(kenken: KenKenPuzzle, depth: int = 0) -> None:
     """Solve the KenKen with deduction and recursive search when needed."""
-    while not kenken._is_solved() and not kenken._has_conflicts():
+    while not kenken._is_solved():
         snapshot = copy.deepcopy(kenken.candidates)
         _reduce_cages(kenken)
         _reduce_rows_and_cols(kenken)
@@ -119,8 +134,6 @@ def _solve(kenken: KenKenPuzzle, depth: int = 0) -> None:
                     logging.info(f"Choosing {choice} in {cell} failed, next")
                     continue
             raise NoSolutionError()
-    if kenken._has_conflicts():
-        raise NoSolutionError()
 
 
 def _reduce_cages(kenken: KenKenPuzzle) -> None:
@@ -181,6 +194,8 @@ def _gets_right_result(
         return abs(nums[0] - nums[1]) == result
     elif operation == "/":
         return (result * nums[0] == nums[1] or result * nums[1] == nums[0])
+    elif operation is None:
+        return nums[0] == result
     else:
         raise Exception("Unrecognized operation: %s" % operation)
 

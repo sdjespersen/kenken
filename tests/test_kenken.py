@@ -1,6 +1,5 @@
 import kenken
 import pathlib
-import pytest
 
 
 def load_puzzle(relpath):
@@ -62,9 +61,17 @@ def test_solve_6_3():
     assert puz.solution == solution
 
 
-@pytest.mark.skip("I don't know the solution yet")
 def test_solve_8_1():
-    solution = [[0 for _ in range(8)] for _ in range(8)]
+    solution = (
+        (6, 5, 3, 4, 2, 1, 8, 7),
+        (8, 1, 7, 3, 5, 2, 6, 4),
+        (7, 4, 8, 2, 6, 3, 1, 5),
+        (1, 2, 5, 8, 4, 6, 7, 3),
+        (4, 8, 1, 5, 3, 7, 2, 6),
+        (3, 7, 2, 6, 8, 5, 4, 1),
+        (5, 6, 4, 7, 1, 8, 3, 2),
+        (2, 3, 6, 1, 7, 4, 5, 8),
+    )
     puz = load_puzzle("8-1.json")
     puz.solve()
     assert puz.solution == solution
