@@ -83,10 +83,7 @@ class KenKenPuzzle:
         # Check all rows/cols and throw if invalid
         for mode in ('row', 'col'):
             for i in range(1, self.size + 1):
-                slice_set = set(
-                    [next(iter(z)) for z in self._get_slice(i, mode).values()])
-                if not slice_set == set(range(1, self.size + 1)):
-                    raise NoSolutionError()
+                _check_no_duplicates(self._get_slice(i, mode))
         # Valid! Save solution.
         if self.solution is None:
             sol = [[0 for _ in range(self.size)] for _ in range(self.size)]
