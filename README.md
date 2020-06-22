@@ -1,5 +1,7 @@
 # KenKen Solver
 
+Install with `pip install [-e] .`.
+
 ## Usage
 
 Load a puzzle, solve, obtain the solution:
